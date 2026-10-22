@@ -1,0 +1,4 @@
+include requirements.txt
+graft rcallocation/migrations
+graft rcallocation/notification/templates
+global-exclude *.pyc

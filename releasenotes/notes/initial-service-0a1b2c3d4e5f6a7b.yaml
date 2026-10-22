@@ -1,0 +1,52 @@
+---
+prelude: >
+  Initial release of ``rcallocation``, the Nectar allocation system API as
+  a standalone service. It replaces the Django REST Framework API that was
+  embedded in the nectar-dashboard Horizon plugin and keeps that API's
+  contract under ``/v1/``, so ``python-nectarallocationclient`` works
+  unchanged once the keystone catalog entry for service type
+  ``allocations`` points at ``https://<host>/v1``.
+features:
+  - |
+    All allocation, quota, organisation, reference data and Fields of
+    Research endpoints of the dashboard API are served under ``/v1/`` with
+    the same paths, filters, field sets and pagination envelope.
+  - |
+    New endpoints for the dashboard: ``POST /v1/allocations/<id>/submit/``
+    (edit and resubmit, recording history), ``POST
+    /v1/allocations/<id>/decline/``, optional change bodies on ``approve/``
+    and ``amend/``, ``GET /v1/allocations/<id>/checks/`` (approver warnings
+    and renewal nags), ``GET /v1/usage-types/``, nested ``quotas``,
+    ``investigators``, ``grants`` and ``publications`` on the write
+    actions, an ``include=approver_info`` list option for admins and a
+    ``mine=true`` filter covering the projects the caller manages.
+  - |
+    Allocation responses now carry ``su_budget`` and ``parent_request`` for
+    authenticated callers, and each entry of ``quotas`` carries
+    ``requested_quota``. The reported API version is ``1.3``.
+  - |
+    ``rcallocation-manage import-legacy --source-connection URL`` copies the
+    ``rcallocation_*`` tables of a nectar-dashboard database into the
+    service schema, preserving ids and timestamps.
+upgrade:
+  - |
+    Authorisation is now oslo.policy based. Project-scoped tokens need the
+    ``allocationadmin`` or ``allocationapprover`` role; the plain ``admin``
+    role grants nothing at project scope. Approving and declining requires
+    ``allocationapprover``. Generate the policy sample with
+    ``oslopolicy-sample-generator`` to review the defaults.
+  - |
+    ``[keystone_authtoken] delay_auth_decision`` defaults to true so that
+    anonymous read access keeps working, and ``service_type`` defaults to
+    ``allocations`` for application credential access rules.
+  - |
+    Email goes through taynac only. The SMTP and Freshdesk notifiers, and
+    the From, Reply-To and BCC settings, are gone; ``[notifications] cc``
+    is the only recipient list.
+  - |
+    The site and zone mappings formerly held in Django settings live in a
+    YAML file referenced by ``[allocations] mappings_file``.
+security:
+  - |
+    ``DELETE /v1/quotas/<id>/`` now requires an authenticated owner or
+    admin; the old API only checked the allocation's state.

@@ -1,0 +1,33 @@
+---
+# Compute allocation home to zones (served by /v1/zones/compute_homes/).
+home_zones:
+  national:
+    - melbourne
+    - monash
+  uom:
+    - melbourne
+  monash:
+    - monash
+  qcif:
+    - QRIScloud
+
+# Allocation home (site) to the storage zones local to it.
+home_storage_zones:
+  uom:
+    - melbourne
+  monash:
+    - monash
+  qcif:
+    - QRIScloud
+
+# Site to the email domains of its members.
+site_members:
+  uom:
+    - unimelb.edu.au
+  monash:
+    - monash.edu
+  qcif:
+    - qcif.edu.au
+    - uq.edu.au
+  ardc:
+    - ardc.edu.au

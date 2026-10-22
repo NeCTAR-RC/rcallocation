@@ -1,0 +1,18 @@
+[files]
+extend-exclude = [
+    "rcallocation/forcodes.py",
+    "rcallocation/countries.py",
+    "rcallocation/migrations/",
+    "rcallocation/tests/unit/fixtures.py",
+    "rcallocation/tests/unit/api/v1/test_framework.py",
+]
+
+[default.extend-words]
+ACN = "ACN"
+ANDS = "ANDS"
+HASS = "HASS"
+# SQLAlchemy relationship loading strategy
+selectin = "selectin"
+
+[default.extend-identifiers]
+FoR = "FoR"
