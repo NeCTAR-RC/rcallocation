@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Quotas sent nested in an allocation body on create, ``submit``,
+    ``amend`` and ``approve`` are now validated like ``POST /v1/quotas/``.
+    A resource whose service type is not offered in the zone, or an
+    unlimited (``-1``) quota on a managed allocation, is rejected with a
+    400 error naming the offending ``quotas`` entry.

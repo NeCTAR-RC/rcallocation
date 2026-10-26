@@ -278,6 +278,14 @@ class Manager:
                 break
         if value:
             # Purposely test for 0 or None which means the same thing
+            entry = f"{resource.codename} in zone '{zone.name}'"
+            self._check_quota_zone(resource, zone, entry)
+            self._check_quota_unlimited(
+                allocation,
+                quota=value if approving else 0,
+                requested_quota=0 if approving else value,
+                entry=entry,
+            )
             if group is None:
                 group = models.QuotaGroup(
                     allocation_id=allocation.id,
@@ -320,6 +328,38 @@ class Manager:
                 db.session.delete(group)
         db.session.flush()
         db.session.expire(allocation, ["quota_groups"])
+
+    @staticmethod
+    def _quota_error(message, entry=None):
+        """A quota ValidationError, keyed on ``quotas`` for nested writes.
+
+        ``POST /quotas/`` (no ``entry``) returns a plain message list; a
+        nested ``quotas`` entry is named and keyed on the ``quotas`` field.
+        """
+        if entry is None:
+            return exceptions.ValidationError([message])
+        return exceptions.ValidationError({"quotas": [f"{entry}: {message}"]})
+
+    def _check_quota_zone(self, resource, zone, entry=None):
+        if zone not in resource.service_type.zones:
+            raise self._quota_error(
+                "Resource not available in this zone", entry
+            )
+
+    def _check_quota_unlimited(
+        self, allocation, quota=0, requested_quota=0, entry=None
+    ):
+        if not allocation.managed:
+            return
+        if quota == -1:
+            raise self._quota_error(
+                "Unlimited quota not allowed for managed allocation", entry
+            )
+        if requested_quota == -1:
+            raise self._quota_error(
+                "Unlimited requested quota not allowed for managed allocation",
+                entry,
+            )
 
     def _resource(self, ref):
         if isinstance(ref, models.Resource):
@@ -364,10 +404,7 @@ class Manager:
         zone = db.session.get(models.Zone, data["zone"])
         if zone is None:
             raise exceptions.ValidationError(["Zone does not exist"])
-        if zone not in resource.service_type.zones:
-            raise exceptions.ValidationError(
-                ["Resource not available in this zone"]
-            )
+        self._check_quota_zone(resource, zone)
         group = None
         for candidate in allocation.quota_groups:
             if (
@@ -379,18 +416,11 @@ class Manager:
             q.resource_id == resource.id for q in group.quotas
         ):
             raise exceptions.ValidationError(["Duplicate quota resource"])
-        if allocation.managed:
-            if data.get("quota", 0) == -1:
-                raise exceptions.ValidationError(
-                    ["Unlimited quota not allowed for managed allocation"]
-                )
-            if data.get("requested_quota", 0) == -1:
-                raise exceptions.ValidationError(
-                    [
-                        "Unlimited requested quota not allowed for managed "
-                        "allocation"
-                    ]
-                )
+        self._check_quota_unlimited(
+            allocation,
+            quota=data.get("quota", 0),
+            requested_quota=data.get("requested_quota", 0),
+        )
         if group is None:
             group = models.QuotaGroup(
                 allocation_id=allocation.id,

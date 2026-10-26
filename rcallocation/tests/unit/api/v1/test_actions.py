@@ -271,8 +271,155 @@ class SubmitTests(common.AllocationApiTestCase):
             {'quotas': ["Unknown resource 'no.such'"]}, response.json
         )
 
+    def test_submit_quota_zone_not_offered(self):
+        # volume is not offered in the nectar zone
+        self.as_user()
+        response = self.client.post(
+            f'/v1/allocations/{self.allocation.id}/submit/',
+            json={
+                'quotas': [
+                    {
+                        'zone': 'nectar',
+                        'resource': 'volume.gigabytes',
+                        'requested_quota': 100,
+                    }
+                ]
+            },
+        )
+        self.assertEqual(response.status_code, 400, response.json)
+        self.assertEqual(
+            {
+                'quotas': [
+                    "volume.gigabytes in zone 'nectar': "
+                    "Resource not available in this zone"
+                ]
+            },
+            response.json,
+        )
+
+    def test_submit_unlimited_managed(self):
+        self.as_user()
+        response = self.client.post(
+            f'/v1/allocations/{self.allocation.id}/submit/',
+            json={
+                'quotas': [
+                    {
+                        'zone': 'nectar',
+                        'resource': 'compute.cores',
+                        'requested_quota': -1,
+                    }
+                ]
+            },
+        )
+        self.assertEqual(response.status_code, 400, response.json)
+        self.assertEqual(
+            {
+                'quotas': [
+                    "compute.cores in zone 'nectar': Unlimited requested "
+                    "quota not allowed for managed allocation"
+                ]
+            },
+            response.json,
+        )
+
+    def test_submit_unlimited_unmanaged(self):
+        allocation = factories.create_allocation(
+            contact_email=common.USER["user_name"], managed=False
+        )
+        self.as_user()
+        response = self.client.post(
+            f'/v1/allocations/{allocation.id}/submit/',
+            json={
+                'quotas': [
+                    {
+                        'zone': 'nectar',
+                        'resource': 'compute.cores',
+                        'requested_quota': -1,
+                    }
+                ]
+            },
+        )
+        self.assertEqual(response.status_code, 200, response.json)
+        self.assertEqual(
+            {('compute.cores', 'nectar'): (-1, 0)},
+            quota_map(factories.refresh(allocation)),
+        )
+
 
 class ApproveWithChangesTests(common.AllocationApiTestCase):
+    def test_approve_quota_zone_not_offered(self):
+        self.as_approver()
+        response = self.client.post(
+            f'/v1/allocations/{self.allocation.id}/approve/',
+            json={
+                'quotas': [
+                    {
+                        'zone': 'melbourne',
+                        'resource': 'compute.cores',
+                        'quota': 16,
+                    }
+                ]
+            },
+        )
+        self.assertEqual(response.status_code, 400, response.json)
+        self.assertEqual(
+            {
+                'quotas': [
+                    "compute.cores in zone 'melbourne': "
+                    "Resource not available in this zone"
+                ]
+            },
+            response.json,
+        )
+
+    def test_approve_unlimited_managed(self):
+        self.as_approver()
+        response = self.client.post(
+            f'/v1/allocations/{self.allocation.id}/approve/',
+            json={
+                'quotas': [
+                    {
+                        'zone': 'nectar',
+                        'resource': 'compute.cores',
+                        'quota': -1,
+                    }
+                ]
+            },
+        )
+        self.assertEqual(response.status_code, 400, response.json)
+        self.assertEqual(
+            {
+                'quotas': [
+                    "compute.cores in zone 'nectar': Unlimited quota not "
+                    "allowed for managed allocation"
+                ]
+            },
+            response.json,
+        )
+
+    def test_approve_unlimited_unmanaged(self):
+        allocation = factories.create_allocation(managed=False)
+        self.as_approver()
+        response = self.client.post(
+            f'/v1/allocations/{allocation.id}/approve/',
+            json={
+                'quotas': [
+                    {
+                        'zone': 'nectar',
+                        'resource': 'compute.cores',
+                        'quota': -1,
+                    }
+                ]
+            },
+        )
+        self.assertEqual(response.status_code, 200, response.json)
+        self.assertEqual(
+            -1,
+            quota_map(factories.refresh(allocation))[
+                ('compute.cores', 'nectar')
+            ][1],
+        )
+
     def test_approve_with_changes(self):
         self.as_approver()
         response = self.client.post(
