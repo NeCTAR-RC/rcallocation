@@ -445,15 +445,17 @@ class NagChecker(Checker):
     ]
 
 
-def values_from_allocation(allocation, approving=False):
+def values_from_allocation(allocation):
     """Flat values for the checkers built from a stored allocation.
 
-    Quota values use the allocated quota for approved allocations (or
-    when approving) and the requested quota otherwise, as the dashboard's
-    quota form initial values did.
+    Quota values use the allocated quota for approved allocations and the
+    requested quota otherwise, as the dashboard's quota form initial values
+    did. This holds when approving too: an approver checking a pending
+    request evaluates the amounts asked for, not the allocated quota that
+    has not been set yet.
     """
     values = {}
-    use_allocated = approving or allocation.status == choices.APPROVED
+    use_allocated = allocation.status == choices.APPROVED
     for item in allocation.quota_list():
         key = quota_key(item['resource'], item['zone'])
         values[key] = (

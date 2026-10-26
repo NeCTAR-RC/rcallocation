@@ -457,7 +457,7 @@ class Manager:
             return
         db.session.flush()
         db.session.expire(allocation)
-        values = checkers.values_from_allocation(allocation, approving)
+        values = checkers.values_from_allocation(allocation)
         checker = checkers.QuotaSanityChecker(
             allocation=allocation,
             values=values,
@@ -470,7 +470,7 @@ class Manager:
             raise exceptions.WarningsError(checkers.as_dicts(warnings))
 
     def checks(self, allocation, approving=False):
-        values = checkers.values_from_allocation(allocation, approving)
+        values = checkers.values_from_allocation(allocation)
         warnings = checkers.QuotaSanityChecker(
             allocation=allocation,
             values=values,

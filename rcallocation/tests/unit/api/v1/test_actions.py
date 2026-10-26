@@ -16,6 +16,7 @@ amend with bodies, checks, nested writes and approver info on lists."""
 
 import datetime
 
+from rcallocation import checkers
 from rcallocation import choices
 from rcallocation.extensions import db
 from rcallocation import models
@@ -623,6 +624,87 @@ class ChecksTests(common.AllocationApiTestCase):
         self.assertIn(
             'APPROVER_PROBLEM', [w['code'] for w in response.json['warnings']]
         )
+
+    def _foreign_storage_allocation(self, status, quota, requested_quota):
+        # A uom request with volume storage in monash, foreign to uom
+        uom = factories.get(models.Site, name='uom')
+        if not factories.first(
+            models.Approver, username=common.APPROVER["user_name"]
+        ):
+            factories.create_approver(
+                common.APPROVER["user_name"], "The Approver", sites=[uom]
+            )
+        allocation = factories.create_allocation(
+            contact_email=common.USER["user_name"],
+            status=status,
+            associated_site=uom,
+            create_quotas=False,
+        )
+        volume_st = factories.get(models.ServiceType, catalog_name='volume')
+        group = factories.create_quota_group(
+            allocation, volume_st, factories.get(models.Zone, name='monash')
+        )
+        factories.create_quota(
+            group,
+            factories.get(
+                models.Resource,
+                quota_name='gigabytes',
+                service_type_id='volume',
+            ),
+            quota=quota,
+            requested_quota=requested_quota,
+        )
+        return factories.refresh(allocation)
+
+    def _warning_codes(self, allocation, approving):
+        url = f'/v1/allocations/{allocation.id}/checks/'
+        if approving:
+            url += '?approving=true'
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200, response.json)
+        return [w['code'] for w in response.json['warnings']]
+
+    def test_checks_approving_pending_uses_requested_quota(self):
+        for status in (choices.SUBMITTED, choices.UPDATE_PENDING):
+            allocation = self._foreign_storage_allocation(
+                status, quota=0, requested_quota=500
+            )
+            self.assertEqual(
+                {'quota-volume.gigabytes__monash': 500},
+                checkers.values_from_allocation(allocation),
+            )
+            self.as_approver()
+            codes = self._warning_codes(allocation, approving=True)
+            self.assertIn('CINDER_NOT_LOCAL', codes)
+            self.assertIn('APPROVER_NOT_AUTHORIZED', codes)
+
+    def test_checks_approving_approved_uses_allocated_quota(self):
+        allocation = self._foreign_storage_allocation(
+            choices.APPROVED, quota=0, requested_quota=500
+        )
+        self.assertEqual(
+            {'quota-volume.gigabytes__monash': 0},
+            checkers.values_from_allocation(allocation),
+        )
+        self.as_approver()
+        self.assertEqual([], self._warning_codes(allocation, approving=True))
+
+        allocation = self._foreign_storage_allocation(
+            choices.APPROVED, quota=500, requested_quota=0
+        )
+        codes = self._warning_codes(allocation, approving=True)
+        self.assertIn('CINDER_NOT_LOCAL', codes)
+        self.assertIn('APPROVER_NOT_AUTHORIZED', codes)
+
+    def test_checks_not_approving_unchanged(self):
+        allocation = self._foreign_storage_allocation(
+            choices.SUBMITTED, quota=0, requested_quota=500
+        )
+        # The approver-only storage checks do not run without approving
+        self.as_approver()
+        self.assertEqual([], self._warning_codes(allocation, approving=False))
+        self.as_user()
+        self.assertEqual([], self._warning_codes(allocation, approving=False))
 
     def test_checks_other_user(self):
         self.as_user2()

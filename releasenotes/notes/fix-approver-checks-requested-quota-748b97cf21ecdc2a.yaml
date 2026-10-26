@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    ``GET /v1/allocations/<id>/checks/?approving=true`` now evaluates the
+    requested quotas of a pending request instead of its not yet allocated
+    quotas, so the storage locality and approver site warnings appear before
+    approval. Approved allocations are still checked against their allocated
+    quotas.
