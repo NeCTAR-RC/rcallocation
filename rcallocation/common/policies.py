@@ -268,7 +268,7 @@ quota_rules = [
     _rule(
         QUOTA_PREFIX,
         "delete",
-        f"rule:{ADMIN_OR_OWNER}",
+        f"rule:{WRITE_ADMIN_OR_OWNER}",
         "Remove a quota from a pending allocation request.",
         _ops("/v1/quotas/{quota_id}/", "DELETE"),
     ),

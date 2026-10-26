@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    The default ``rcallocation:quota:delete`` policy is now
+    ``rule:write_admin_or_owner``, so ``allocationapprover`` users can
+    remove quota rows from pending requests just as they can add them.

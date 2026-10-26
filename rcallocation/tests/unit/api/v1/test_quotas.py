@@ -162,6 +162,26 @@ class QuotaTests(common.AllocationApiTestCase):
         response = self.client.delete(f'/v1/quotas/{self.quota.id}/')
         self.assertEqual(response.status_code, 404)
 
+    def test_delete_quota_approver(self):
+        self.as_approver()
+        response = self.client.delete(f'/v1/quotas/{self.quota.id}/')
+        self.assertEqual(response.status_code, 204)
+        self.assertIsNone(db.session.get(models.Quota, self.quota.id))
+
+    def test_delete_quota_admin(self):
+        self.as_admin()
+        response = self.client.delete(f'/v1/quotas/{self.quota.id}/')
+        self.assertEqual(response.status_code, 204)
+        self.assertIsNone(db.session.get(models.Quota, self.quota.id))
+
+    def test_delete_quota_project_admin_role(self):
+        # The keystone admin role on a project grants nothing here; the
+        # quota is not visible to a non-owner so the answer is 404.
+        self.persona(dict(common.USER2, roles=['member', 'admin']))
+        response = self.client.delete(f'/v1/quotas/{self.quota.id}/')
+        self.assertEqual(response.status_code, 404)
+        self.assertIsNotNone(db.session.get(models.Quota, self.quota.id))
+
     def test_delete_quota_unauthenticated(self):
         # Closed: anonymous callers could delete quotas in the old API.
         self.as_anon()
