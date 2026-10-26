@@ -13,6 +13,9 @@
 
 from oslo_config import cfg
 
+from rcallocation import app
+from rcallocation.common import config
+from rcallocation.common import keystone
 from rcallocation.tests.unit import base
 
 
@@ -94,3 +97,35 @@ class TestApp(base.ApiTestCase):
         self.assertEqual(
             {"detail": "Invalid or expired token."}, response.json
         )
+
+
+class TestKeystoneAuthStrategy(base.TestCase):
+    """The real keystone middleware stack, without a keystone server."""
+
+    def create_app(self):
+        config.init(conf_file=base.CONF_FILE)
+        cfg.CONF.set_override("auth_strategy", "keystone")
+        return app.create_app(
+            {
+                "SECRET_KEY": "secret",
+                "TESTING": True,
+                "SQLALCHEMY_DATABASE_URI": "sqlite://",
+                "SQLALCHEMY_TRACK_MODIFICATIONS": False,
+            },
+            init_config=False,
+        )
+
+    def test_middleware_installed(self):
+        self.assertIsInstance(self.app.wsgi_app, keystone.SkippingAuthProtocol)
+
+    def test_skipped_paths_with_token(self):
+        headers = {"X-Auth-Token": "tok"}
+        for path in ("/", "/v1/openapi.json"):
+            response = self.client.get(path, headers=headers)
+            self.assertEqual(200, response.status_code, path)
+
+    def test_healthcheck_with_token(self):
+        response = self.client.get(
+            "/healthcheck", headers={"X-Auth-Token": "tok"}
+        )
+        self.assertEqual(200, response.status_code)

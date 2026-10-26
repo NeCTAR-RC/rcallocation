@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    Requests to the paths that skip keystone authentication (``/``,
+    ``/healthcheck``, ``/v1/openapi.json`` and ``/v1/docs``) no longer
+    answer 401 when they carry a valid ``X-Auth-Token``, as keystoneauth
+    version discovery does. Identity headers such as ``X-User-Id``,
+    ``X-Roles`` and ``OpenStack-System-Scope`` sent by the caller are now
+    stripped on those paths, so they are always handled as anonymous.

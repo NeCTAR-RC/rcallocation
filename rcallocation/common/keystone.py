@@ -25,6 +25,7 @@ REQUEST_CONTEXT_ENV = "oslo_context"
 INVALID_TOKEN_ENV = "rcallocation.invalid_token"
 _NOAUTH_PATHS = ["/", "/healthcheck", "/v1/openapi.json"]
 _NOAUTH_PREFIXES = ["/v1/docs"]
+_SYSTEM_SCOPE_HEADER = "OpenStack-System-Scope"
 
 
 class KeystoneSession:
@@ -66,6 +67,10 @@ class KeystoneContext:
     reach the application as an anonymous context. A request that carried
     a token which keystone rejected is flagged in the environ so the
     application can answer 401 instead of treating it as anonymous.
+
+    Only an explicit ``Invalid`` identity status set by keystonemiddleware
+    counts as a rejected token. Paths that skip keystone never get a status
+    and so are never flagged, even when the caller sends a token.
     """
 
     def __init__(self, app):
@@ -76,7 +81,7 @@ class KeystoneContext:
         environ[REQUEST_CONTEXT_ENV] = request_context
         if (
             "HTTP_X_AUTH_TOKEN" in environ
-            and environ.get("HTTP_X_IDENTITY_STATUS") != "Confirmed"
+            and environ.get("HTTP_X_IDENTITY_STATUS") == "Invalid"
         ):
             environ[INVALID_TOKEN_ENV] = True
         return self.app(environ, start_response)
@@ -109,7 +114,10 @@ class SkippingAuthProtocol(auth_token.AuthProtocol):
         SkippingAuthProtocol is lean customization
         of :py:class:`keystonemiddleware.auth_token.AuthProtocol`
         that disables keystone communication if the request path
-        is in the _NOAUTH_PATHS list.
+        is in the _NOAUTH_PATHS list. The identity headers keystonemiddleware
+    would normally strip are still removed on those paths, so they reach
+    the application as an anonymous request and a caller cannot assert an
+    identity through them.
 
     """
 
@@ -123,6 +131,10 @@ class SkippingAuthProtocol(auth_token.AuthProtocol):
                 "authentication",
                 path,
             )
+            request.remove_auth_headers()
+            # keystonemiddleware only overwrites this header when a token
+            # is validated, so it is not part of remove_auth_headers().
+            request.headers.pop(_SYSTEM_SCOPE_HEADER, None)
             return None  # return NONE to reach actual logic
 
         return super().process_request(request)
