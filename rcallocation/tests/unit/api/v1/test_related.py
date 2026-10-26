@@ -338,3 +338,69 @@ class GrantTests(common.AllocationApiTestCase):
         self.as_user2()
         response = self.client.delete(f'/v1/grants/{self.grant.id}/')
         self.assertEqual(response.status_code, 404)
+
+
+class RelatedDeletePolicyTests(common.AllocationApiTestCase):
+    """DELETE evaluates ``rcallocation:<resource>:delete``, not update."""
+
+    def _records(self):
+        return [
+            (
+                'chief_investigator',
+                '/v1/chiefinvestigators/',
+                models.ChiefInvestigator,
+                factories.create_investigator(self.allocation),
+            ),
+            (
+                'publication',
+                '/v1/publications/',
+                models.Publication,
+                factories.create_publication(self.allocation),
+            ),
+            (
+                'grant',
+                '/v1/grants/',
+                models.Grant,
+                factories.create_grant(self.allocation),
+            ),
+        ]
+
+    def test_delete_rule_overridden(self):
+        records = self._records()
+        self.override_policy(
+            {
+                f'rcallocation:{name}:delete': 'rule:admin'
+                for name, *_ in records
+            }
+        )
+        self.as_user()
+        for name, path, model, obj in records:
+            with self.subTest(name):
+                response = self.client.delete(f'{path}{obj.id}/')
+                self.assertEqual(response.status_code, 403)
+                self.assertIsNotNone(db.session.get(model, obj.id))
+
+    def test_delete_rule_overridden_update_allowed(self):
+        # Overriding delete must not affect update.
+        records = self._records()
+        self.override_policy(
+            {
+                f'rcallocation:{name}:delete': 'rule:admin'
+                for name, *_ in records
+            }
+        )
+        self.as_user()
+        _, path, _, obj = records[1]
+        response = self.client.patch(
+            f'{path}{obj.id}/', data={'publication': 'changed'}
+        )
+        self.assertEqual(response.status_code, 200, response.json)
+
+    def test_delete_default_policy(self):
+        records = self._records()
+        self.as_user()
+        for name, path, model, obj in records:
+            with self.subTest(name):
+                response = self.client.delete(f'{path}{obj.id}/')
+                self.assertEqual(response.status_code, 204)
+                self.assertIsNone(db.session.get(model, obj.id))

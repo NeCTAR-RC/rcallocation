@@ -17,6 +17,7 @@ from unittest import mock
 
 import flask_testing
 from oslo_config import cfg
+from oslo_policy import policy as oslo_policy
 import sqlalchemy as sa
 
 from rcallocation import app
@@ -151,6 +152,14 @@ class ApiTestCase(TestCase):
         }
         persona.update(overrides)
         self.app.wsgi_app = TestKeystoneWrapper(self._base_wsgi_app, **persona)
+
+    def override_policy(self, rules):
+        """Override policy rules, as an operator's policy.yaml would."""
+        enforcer = policy.get_enforcer()
+        enforcer.load_rules()
+        enforcer.set_rules(
+            oslo_policy.Rules.from_dict(rules), overwrite=False, use_conf=False
+        )
 
 
 class AdminApiTestCase(ApiTestCase):

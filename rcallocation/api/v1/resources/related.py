@@ -47,8 +47,8 @@ class RelatedResource(base.Resource):
     def get_visible(self, ident):
         return self.get_or_404(self.model, ident, query=self.visible_query())
 
-    def require_modifiable(self, obj):
-        self.require_object("update", obj)
+    def require_modifiable(self, obj, action="update"):
+        self.require_object(action, obj)
         allocation = obj.allocation
         if allocation.is_history() or (
             allocation.status not in choices.PENDING_STATUSES
@@ -87,7 +87,7 @@ class RelatedResource(base.Resource):
     def _delete(self, ident):
         self.require_authenticated()
         obj = self.get_visible(ident)
-        self.require_modifiable(obj)
+        self.require_modifiable(obj, "delete")
         manager.Manager(self.context).delete_related(obj)
         return "", 204
 

@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Deleting a chief investigator, publication or grant now enforces the
+    ``rcallocation:<resource>:delete`` policy rule instead of the ``update``
+    rule, so operator overrides of the delete rules take effect. The default
+    access is unchanged.
