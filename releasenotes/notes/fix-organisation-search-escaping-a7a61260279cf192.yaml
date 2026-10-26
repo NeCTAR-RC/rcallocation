@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    The ``search`` filter on ``GET /v1/organisations/`` now matches ``%``,
+    ``_`` and ``\`` literally instead of treating them as SQL LIKE wildcards,
+    so ``search=a_b`` no longer matches ``aXb`` and ``search=%`` no longer
+    returns every organisation.

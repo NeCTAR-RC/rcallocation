@@ -37,11 +37,12 @@ blp = base.v1_blueprint(
 
 
 def _filter_search(query, lookup, value):
-    pattern = f"%{value}%"
+    pattern = filtering.like_pattern(value)
+    escape = filtering.LIKE_ESCAPE
     return query.filter(
         sa.or_(
-            Organisation.full_name.ilike(pattern),
-            Organisation.short_name.ilike(pattern),
+            Organisation.full_name.ilike(pattern, escape=escape),
+            Organisation.short_name.ilike(pattern, escape=escape),
         )
     )
 

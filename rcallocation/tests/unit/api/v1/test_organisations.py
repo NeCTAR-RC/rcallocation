@@ -332,3 +332,37 @@ class OrganisationTest(common.AllocationApiTestCase):
             ['UWW', 'all'],
             [o['short_name'] for o in response.json['results']],
         )
+
+    def _search(self, value):
+        response = self.client.get(
+            '/v1/organisations/', query_string={'search': value}
+        )
+        self.assertEqual(200, response.status_code)
+        return [o['full_name'] for o in response.json['results']]
+
+    def test_filter_search_underscore_is_literal(self):
+        factories.create_organisation(full_name='Org a_b', short_name='AUB')
+        factories.create_organisation(full_name='Org aXb', short_name='AXB')
+        factories.create_organisation(full_name='Org a-b', short_name='ADB')
+        self.as_anon()
+        self.assertEqual(['Org a_b'], self._search('a_b'))
+
+    def test_filter_search_percent_is_literal(self):
+        self.as_anon()
+        self.assertEqual([], self._search('%'))
+        factories.create_organisation(
+            full_name='Org 100% Test', short_name='PCT'
+        )
+        self.assertEqual(['Org 100% Test'], self._search('%'))
+
+    def test_filter_search_backslash_is_literal(self):
+        factories.create_organisation(full_name='Org a\\b', short_name='ABS')
+        factories.create_organisation(full_name='Org ab', short_name='AB')
+        self.as_anon()
+        self.assertEqual(['Org a\\b'], self._search('a\\b'))
+        self.assertEqual([], self._search('\\%'))
+
+    def test_filter_search_case_insensitive_substring(self):
+        self.as_anon()
+        self.assertEqual(['Monash University'], self._search('MONASH'))
+        self.assertEqual(['Monash University'], self._search('onas'))

@@ -63,8 +63,26 @@ def parse_bool(value):
     return _BOOLEANS.get(str(value).strip().lower())
 
 
+LIKE_ESCAPE = "\\"
+
+
 def _like_escape(value):
     return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def like_pattern(value, kind="contains"):
+    """Return a LIKE pattern matching ``value`` literally.
+
+    ``kind`` is ``contains``, ``startswith`` or ``endswith``. Use the
+    pattern with ``escape=LIKE_ESCAPE`` so ``%``, ``_`` and the escape
+    character in ``value`` are not treated as wildcards.
+    """
+    escaped = _like_escape(str(value))
+    if kind == "startswith":
+        return f"{escaped}%"
+    if kind == "endswith":
+        return f"%{escaped}"
+    return f"%{escaped}%"
 
 
 def _coerce_value(column, value, lookup):
@@ -120,18 +138,12 @@ def _condition(column, lookup, value):
         return column.in_(value)
     if lookup == "isnull":
         return column.is_(None) if value else column.is_not(None)
-    if lookup == "contains":
-        return column.like(f"%{_like_escape(value)}%", escape="\\")
-    if lookup == "icontains":
-        return column.ilike(f"%{_like_escape(value)}%", escape="\\")
-    if lookup == "startswith":
-        return column.like(f"{_like_escape(value)}%", escape="\\")
-    if lookup == "istartswith":
-        return column.ilike(f"{_like_escape(value)}%", escape="\\")
-    if lookup == "endswith":
-        return column.like(f"%{_like_escape(value)}", escape="\\")
-    if lookup == "iendswith":
-        return column.ilike(f"%{_like_escape(value)}", escape="\\")
+    if lookup in ("contains", "startswith", "endswith"):
+        return column.like(like_pattern(value, lookup), escape=LIKE_ESCAPE)
+    if lookup in ("icontains", "istartswith", "iendswith"):
+        return column.ilike(
+            like_pattern(value, lookup[1:]), escape=LIKE_ESCAPE
+        )
     if lookup == "regex":
         return column.regexp_match(value)
     if lookup == "lt":
