@@ -46,49 +46,89 @@ def get_clockstop_amendment(allocation):
     These edge-cases could be avoided by querying Keystone (indirectly)
     to find out the project's real expiry status.
     """
+    return get_clockstop_amendments([allocation]).get(allocation.id)
+
+
+def get_clockstop_amendments(allocations):
+    """Batch form of get_clockstop_amendment, in a single query.
+
+    Returns a dict of allocation id to its clock-stop amendment; ids
+    with no clock-stop amendment are absent.
+    """
+    ids = [allocation.id for allocation in allocations]
+    if not ids:
+        return {}
     Allocation = models.AllocationRequest
-    # The last approved allocation
-    approval = (
-        db.session.query(Allocation)
+    # The time of the last approval of each allocation
+    approvals = (
+        db.session.query(
+            Allocation.parent_request_id.label("allocation_id"),
+            sa.func.max(Allocation.modified_time).label("approved_time"),
+        )
         .filter(
             Allocation.status == choices.APPROVED,
-            Allocation.parent_request_id == allocation.id,
+            Allocation.parent_request_id.in_(ids),
         )
-        .order_by(Allocation.modified_time.desc())
-        .first()
+        .group_by(Allocation.parent_request_id)
+        .subquery()
     )
-    if approval is None:
-        return None
-    # The first amendment after the last approval
-    return (
-        db.session.query(Allocation)
-        .filter(
-            Allocation.status == choices.UPDATE_PENDING,
-            sa.or_(
-                Allocation.parent_request_id == allocation.id,
-                Allocation.id == allocation.id,
+    # The amendments after the last approval, earliest first
+    rows = (
+        db.session.query(Allocation, approvals.c.allocation_id)
+        .join(
+            approvals,
+            sa.and_(
+                sa.or_(
+                    Allocation.parent_request_id == approvals.c.allocation_id,
+                    Allocation.id == approvals.c.allocation_id,
+                ),
+                Allocation.modified_time > approvals.c.approved_time,
             ),
-            Allocation.modified_time > approval.modified_time,
         )
-        .order_by(Allocation.modified_time)
-        .first()
+        .filter(Allocation.status == choices.UPDATE_PENDING)
+        .order_by(Allocation.modified_time, Allocation.id)
     )
+    result = {}
+    for amendment, allocation_id in rows:
+        result.setdefault(allocation_id, amendment)
+    return result
 
 
-def get_urgency_info(allocation):
+def _is_expiring(allocation, today):
+    return bool(allocation.end_date and allocation.end_date < today)
+
+
+def get_urgency_infos(allocations):
+    """get_urgency_info for many allocations, keyed by allocation id,
+    with the clock-stop lookups batched into one query.
+    """
+    today = datetime.date.today()
+    clockstops = get_clockstop_amendments(
+        [a for a in allocations if _is_expiring(a, today)]
+    )
+    return {a.id: get_urgency_info(a, clockstops) for a in allocations}
+
+
+def get_urgency_info(allocation, clockstops=None):
     """Derive the urgency info for the urgency field from the modification
     date for the current allocation request and the project's inferred
     expiration state ... if the allocation past its end date.  This does not
     take account of ticket holds.  (That would require a Keystone "project
     show" and the Approver doesn't have permission to do that.)
+
+    ``clockstops`` is an optional result of get_clockstop_amendments
+    covering this allocation, to avoid querying for it here.
     """
     today = datetime.date.today()
     mod_date = allocation.modified_time.date()
-    if allocation.end_date and allocation.end_date < today:
+    if _is_expiring(allocation, today):
         # Allocations that are expiring.  The urgency corresponds to
         # the expiry state at the point that we infer that the expiry
         # clock was stopped.
-        clockstop = get_clockstop_amendment(allocation)
+        if clockstops is None:
+            clockstop = get_clockstop_amendment(allocation)
+        else:
+            clockstop = clockstops.get(allocation.id)
         if clockstop:
             expiry_clock = clockstop.modified_time.date()
             if expiry_clock + datetime.timedelta(days=30 * 5) < today:

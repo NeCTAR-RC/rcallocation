@@ -805,6 +805,128 @@ class ApproverInfoListTests(common.AllocationApiTestCase):
         history = [a for a in response.json['results'] if a['parent_request']]
         self.assertNotIn('approval_urgency', history[0])
 
+    def _days_ago(self, days):
+        return datetime.datetime.now() - datetime.timedelta(days=days)
+
+    def _clockstopped(self, **kwargs):
+        """An expired allocation with an approval then an amendment."""
+        today = datetime.date.today()
+        allocation = factories.create_allocation(
+            end_date=today - datetime.timedelta(days=60),
+            modified_time=self._days_ago(10),
+            status=choices.UPDATE_PENDING,
+            **kwargs,
+        )
+        factories.create_allocation(
+            parent_request_id=allocation.id,
+            status=choices.APPROVED,
+            modified_time=self._days_ago(50),
+        )
+        return allocation
+
+    def test_include_approver_info_states(self):
+        today = datetime.date.today()
+        archived = self._clockstopped()
+        unknown = factories.create_allocation(
+            end_date=today - datetime.timedelta(days=60),
+            status=choices.APPROVED,
+        )
+        by_email = factories.create_allocation(
+            associated_site=None,
+            contact_email='someone@student.unimelb.edu.au',
+            status=choices.SUBMITTED,
+        )
+        expired = factories.create_allocation(
+            end_date=today - datetime.timedelta(days=20),
+            status=choices.APPROVED,
+            associated_site=None,
+            contact_email='someone@nowhere.example.com',
+        )
+        factories.create_allocation(
+            parent_request_id=expired.id,
+            status=choices.APPROVED,
+            modified_time=self._days_ago(30),
+        )
+        factories.create_allocation(
+            parent_request_id=expired.id,
+            status=choices.UPDATE_PENDING,
+            modified_time=self._days_ago(10),
+        )
+        self.as_admin()
+        response = self.client.get('/v1/allocations/?include=approver_info')
+        self.assertEqual(response.status_code, 200)
+        keys = ('approval_urgency', 'expiry_state', 'concerned_sites')
+        by_id = {
+            a['id']: {k: a[k] for k in keys}
+            for a in response.json['results']
+            if not a['parent_request']
+        }
+        self.assertEqual(
+            {
+                'approval_urgency': 'Attention',
+                'expiry_state': 'Archived',
+                'concerned_sites': [archived.associated_site.name],
+            },
+            by_id[archived.id],
+        )
+        self.assertEqual(
+            {
+                'approval_urgency': 'N/A',
+                'expiry_state': 'Unknown',
+                'concerned_sites': [unknown.associated_site.name],
+            },
+            by_id[unknown.id],
+        )
+        self.assertEqual(
+            {
+                'approval_urgency': 'New',
+                'expiry_state': 'None',
+                'concerned_sites': ['uom'],
+            },
+            by_id[by_email.id],
+        )
+        self.assertEqual(
+            {
+                'approval_urgency': 'N/A',
+                'expiry_state': 'Expired',
+                'concerned_sites': [],
+            },
+            by_id[expired.id],
+        )
+        # The list agrees with the single allocation endpoint
+        for allocation_id, info in by_id.items():
+            single = self.client.get(
+                f'/v1/allocations/{allocation_id}/approver_info/'
+            )
+            self.assertEqual(info, single.json)
+
+    def _list_query_count(self):
+        self.as_admin()
+        with self.count_queries() as statements:
+            response = self.client.get(
+                '/v1/allocations/?include=approver_info'
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(
+            'Archived',
+            [a.get('expiry_state') for a in response.json['results']],
+        )
+        return len(statements)
+
+    def test_include_approver_info_query_count(self):
+        def add(count):
+            for _ in range(count):
+                self._clockstopped(
+                    associated_site=None,
+                    contact_email='someone@unimelb.edu.au',
+                )
+
+        add(2)
+        small = self._list_query_count()
+        add(18)
+        large = self._list_query_count()
+        self.assertEqual(small, large)
+
     def test_include_ignored_for_users(self):
         self.as_user()
         response = self.client.get('/v1/allocations/?include=approver_info')

@@ -642,19 +642,37 @@ class Manager:
             raise exceptions.ActionError(
                 "The allocation cannot be a history record"
             )
-        u, e = urgency.get_urgency_info(allocation)
-        if allocation.status not in [
-            choices.NEW,
-            choices.SUBMITTED,
-            choices.UPDATE_PENDING,
-        ]:
-            u = "N/A"
-        sites = [s.name for s in utils.get_interested_sites(allocation)]
-        return {
-            'approval_urgency': u,
-            'expiry_state': e,
-            'concerned_sites': sites,
-        }
+        return self.approver_infos([allocation])[allocation.id]
+
+    def approver_infos(self, allocations):
+        """Approver info for live allocations, keyed by allocation id.
+
+        The clock-stop history and the site member map are looked up once
+        for all the allocations rather than once per allocation.
+        """
+        urgencies = urgency.get_urgency_infos(allocations)
+        member_map = None
+        if any(not a.associated_site for a in allocations):
+            member_map = utils.get_member_map()
+        result = {}
+        for allocation in allocations:
+            u, e = urgencies[allocation.id]
+            if allocation.status not in [
+                choices.NEW,
+                choices.SUBMITTED,
+                choices.UPDATE_PENDING,
+            ]:
+                u = "N/A"
+            sites = [
+                s.name
+                for s in utils.get_interested_sites(allocation, member_map)
+            ]
+            result[allocation.id] = {
+                'approval_urgency': u,
+                'expiry_state': e,
+                'concerned_sites': sites,
+            }
+        return result
 
     # ------------------------------------------------------------------
     # related records

@@ -111,9 +111,11 @@ def get_member_map():
     return res
 
 
-def sites_from_email(contact_email):
+def sites_from_email(contact_email, member_map=None):
     domain = institution_from_email(contact_email)
-    return get_member_map().get(domain, [])
+    if member_map is None:
+        member_map = get_member_map()
+    return member_map.get(domain, [])
 
 
 def sites_for_approver(username):
@@ -130,10 +132,13 @@ def sites_for_approver(username):
     return sites
 
 
-def get_interested_sites(allocation):
+def get_interested_sites(allocation, member_map=None):
     """Get the list of Nectar sites for whom this request is
     relevant.  (This is a heuristic ... and may be refined)
+
+    Pass a ``member_map`` from get_member_map when looking up many
+    allocations so the Site table is read once.
     """
     if allocation.associated_site:
         return [allocation.associated_site]
-    return sites_from_email(allocation.contact_email)
+    return sites_from_email(allocation.contact_email, member_map)

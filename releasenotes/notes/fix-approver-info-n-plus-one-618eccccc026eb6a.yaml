@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Listing allocations with ``include=approver_info`` now looks up the
+    clock-stop history and the site member map once per page instead of
+    once per allocation, so the number of SQL queries no longer grows with
+    the page size.

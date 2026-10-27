@@ -210,11 +210,12 @@ class AllocationResource(base.Resource):
     def dump_with_info(self, allocations, include_info):
         data = self.dump(allocations, many=True)
         if include_info and self.is_read_admin:
-            mgr = self.manager()
+            infos = self.manager().approver_infos(
+                [a for a in allocations if not a.is_history()]
+            )
             for allocation, item in zip(allocations, data):
-                if allocation.is_history():
-                    continue
-                item.update(mgr.approver_info(allocation))
+                if allocation.id in infos:
+                    item.update(infos[allocation.id])
         return data
 
 

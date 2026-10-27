@@ -11,6 +11,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import contextlib
 import os
 import re
 from unittest import mock
@@ -72,6 +73,23 @@ class TestCase(flask_testing.TestCase):
             dbapi_connection.execute("PRAGMA foreign_keys=ON")
 
         db.create_all()
+
+    @contextlib.contextmanager
+    def count_queries(self):
+        """Count the SQL statements run inside the block.
+
+        Yields a list that holds one entry per statement executed.
+        """
+        statements = []
+
+        def _record(conn, cursor, statement, *args):
+            statements.append(statement)
+
+        sa.event.listen(db.engine, "before_cursor_execute", _record)
+        try:
+            yield statements
+        finally:
+            sa.event.remove(db.engine, "before_cursor_execute", _record)
 
     def tearDown(self):
         super().tearDown()
