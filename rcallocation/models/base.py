@@ -28,7 +28,7 @@ from rcallocation.extensions import db
 
 def utcnow():
     """Naive UTC now, the representation stored in the database."""
-    return datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+    return datetime.datetime.now(datetime.UTC).replace(tzinfo=None)
 
 
 LongText = db.Text().with_variant(mysql.LONGTEXT(), "mysql")

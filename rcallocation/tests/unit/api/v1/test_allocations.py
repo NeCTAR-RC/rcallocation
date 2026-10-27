@@ -16,7 +16,7 @@
 from datetime import date
 from datetime import datetime
 from datetime import timedelta
-from datetime import timezone
+from datetime import UTC
 
 from rcallocation import choices
 from rcallocation import models
@@ -659,7 +659,7 @@ class AllocationTests(common.AllocationApiTestCase):
         allocation = factories.create_allocation(
             status='A',
             contact_email='other@example.com',
-            end_date=(datetime.now(timezone.utc).date() - timedelta(days=2)),
+            end_date=(datetime.now(UTC).date() - timedelta(days=2)),
         )
         response = self.client.get('/v1/allocations/2/approver_info/')
         self.assertEqual(response.status_code, 200)

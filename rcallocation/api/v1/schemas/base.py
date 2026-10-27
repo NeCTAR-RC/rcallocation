@@ -18,7 +18,7 @@ import marshmallow as ma
 from marshmallow import validate
 
 
-UTC = datetime.timezone.utc
+UTC = datetime.UTC
 
 
 def _drf_messages():

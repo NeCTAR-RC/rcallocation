@@ -116,9 +116,7 @@ def _coerce_value(column, value, lookup):
                 return value
             parsed = datetime.datetime.fromisoformat(value)
             if parsed.tzinfo is not None:
-                parsed = parsed.astimezone(datetime.timezone.utc).replace(
-                    tzinfo=None
-                )
+                parsed = parsed.astimezone(datetime.UTC).replace(tzinfo=None)
             return parsed
         if python_type is datetime.date:
             if isinstance(value, datetime.date):
