@@ -4,5 +4,5 @@ hacking
 coverage
 freezegun
 requests
-# Not published to PyPI; used by the contract test suite.
-nectarallocationclient @ git+https://github.com/NeCTAR-RC/python-nectarallocationclient.git@2.1.1
+# Used by the contract test suite.
+nectarallocationclient>=2.1.1
