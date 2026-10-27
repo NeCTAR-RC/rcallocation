@@ -38,8 +38,7 @@ class TaynacNotifier(NotifierBase):
     """
 
     def send(self, allocation, subject, body):
-        session = keystone.KeystoneSession().get_session()
-        taynac = clients.get_taynacclient(session)
+        taynac = clients.get_taynacclient(keystone.get_session())
         message = taynac.messages.send(
             subject=subject,
             body=body,

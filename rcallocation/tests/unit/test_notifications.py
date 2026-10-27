@@ -172,7 +172,7 @@ class TestTaynacDriver(base.TestCase):
         taynac = mock.Mock()
         taynac.messages.send.return_value = mock.Mock(backend_id="42")
         with (
-            mock.patch("rcallocation.common.keystone.KeystoneSession"),
+            mock.patch("rcallocation.common.keystone.get_session"),
             mock.patch(
                 "rcallocation.common.clients.get_taynacclient",
                 return_value=taynac,

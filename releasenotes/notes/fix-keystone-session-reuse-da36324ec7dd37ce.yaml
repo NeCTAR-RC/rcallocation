@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    tenantmanager project lookups and taynac notifications now share one
+    ``[service_auth]`` keystone session, so the service token is reused
+    instead of authenticating against keystone on every call.

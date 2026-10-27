@@ -80,6 +80,7 @@ class TestCase(flask_testing.TestCase):
         cfg.CONF.reset()
         policy.reset()
         projects.reset()
+        keystone.reset()
         fortree.reset()
         config.reset_mappings()
 

@@ -22,10 +22,10 @@ assignments are read through the service account and cached briefly.
 import threading
 
 import cachetools
-from keystoneclient.v3 import client as ks_client
 from oslo_config import cfg
 from oslo_log import log as logging
 
+from rcallocation.common import clients
 from rcallocation.common import keystone
 
 
@@ -53,8 +53,7 @@ def reset():
 
 
 def _keystone():
-    session = keystone.KeystoneSession().get_session()
-    return ks_client.Client(session=session)
+    return clients.get_keystoneclient(keystone.get_session())
 
 
 def _tenant_manager_role_id(client):

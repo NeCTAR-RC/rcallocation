@@ -11,6 +11,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import threading
+
 from keystoneauth1 import loading as ks_loading
 from keystonemiddleware import auth_token
 from oslo_config import cfg
@@ -58,6 +60,31 @@ class KeystoneSession:
 
     def get_service_user_id(self):
         return self.get_auth().get_user_id(self.get_session())
+
+
+_lock = threading.Lock()
+_service_session = None
+
+
+def get_session():
+    """Return the shared ``[service_auth]`` keystoneauth session.
+
+    The session and its auth plugin are built on first use, after
+    oslo.config has been initialised, and reused so the service token is
+    cached between calls instead of re-authenticating each time.
+    """
+    global _service_session
+    with _lock:
+        if _service_session is None:
+            _service_session = KeystoneSession()
+        return _service_session.get_session()
+
+
+def reset():
+    """Drop the shared session, for tests and config reloads."""
+    global _service_session
+    with _lock:
+        _service_session = None
 
 
 class KeystoneContext:
