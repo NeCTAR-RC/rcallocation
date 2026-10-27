@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    The request id returned in the ``x-openstack-request-id`` response header
+    now matches the request id in the service logs. The request id middleware
+    now runs before the request context is built.

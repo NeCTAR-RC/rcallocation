@@ -103,9 +103,12 @@ def create_app(test_config=None, conf_file=None, init_config=True):
         app.wsgi_app, {'/healthcheck': hc_app}
     )
 
-    app.wsgi_app = http_proxy_to_wsgi.HTTPProxyToWSGI(app.wsgi_app)
-    app.wsgi_app = request_id.RequestId(app.wsgi_app)
-
+    # Each wrapper applied here runs before the ones applied above it, so
+    # the request flows proxy headers -> request id -> auth_token ->
+    # context -> healthcheck dispatcher -> app. RequestId must run before
+    # the context is built: RequestContext.from_environ() reads the
+    # request id it sets, which keeps the id in log lines equal to the
+    # x-openstack-request-id response header.
     if CONF.auth_strategy == "keystone":
         if not CONF.keystone_authtoken.delay_auth_decision:
             LOG.warning(
@@ -116,6 +119,9 @@ def create_app(test_config=None, conf_file=None, init_config=True):
         app.wsgi_app = keystone.SkippingAuthProtocol(app.wsgi_app, {})
     elif CONF.auth_strategy == "noauth":
         app.wsgi_app = keystone.NoAuthContext(app.wsgi_app)
+
+    app.wsgi_app = request_id.RequestId(app.wsgi_app)
+    app.wsgi_app = http_proxy_to_wsgi.HTTPProxyToWSGI(app.wsgi_app)
 
     return app
 

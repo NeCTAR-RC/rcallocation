@@ -11,7 +11,10 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import flask
 from oslo_config import cfg
+from oslo_middleware import http_proxy_to_wsgi
+from oslo_middleware import request_id
 
 from rcallocation import app
 from rcallocation.common import config
@@ -99,12 +102,51 @@ class TestApp(base.ApiTestCase):
         )
 
 
-class TestKeystoneAuthStrategy(base.TestCase):
-    """The real keystone middleware stack, without a keystone server."""
+class RequestIdMixin:
+    """The context the view sees carries the response's request id."""
+
+    def setUp(self):
+        super().setUp()
+        self.contexts = []
+
+        @self.app.after_request
+        def _record_context(response):
+            environ = flask.request.environ
+            self.contexts.append(environ[keystone.REQUEST_CONTEXT_ENV])
+            return response
+
+    def test_request_id_matches_context(self):
+        response = self.client.get("/")
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(1, len(self.contexts))
+        self.assertEqual(
+            response.headers["x-openstack-request-id"],
+            self.contexts[0].request_id,
+        )
+
+    def test_inbound_request_id_is_global_request_id(self):
+        # oslo.middleware keeps a caller supplied X-OpenStack-Request-ID
+        # as the global request id and always generates the local one.
+        inbound = "req-12345678-1234-1234-1234-123456789abc"
+        response = self.client.get(
+            "/", headers={"X-OpenStack-Request-ID": inbound}
+        )
+        self.assertEqual(200, response.status_code)
+        request_context = self.contexts[0]
+        self.assertEqual(inbound, request_context.global_request_id)
+        self.assertEqual(
+            response.headers["x-openstack-request-id"],
+            request_context.request_id,
+        )
+        self.assertNotEqual(inbound, request_context.request_id)
+
+
+class StrategyTestCase(base.TestCase):
+    AUTH_STRATEGY = None
 
     def create_app(self):
         config.init(conf_file=base.CONF_FILE)
-        cfg.CONF.set_override("auth_strategy", "keystone")
+        cfg.CONF.set_override("auth_strategy", self.AUTH_STRATEGY)
         return app.create_app(
             {
                 "SECRET_KEY": "secret",
@@ -115,8 +157,31 @@ class TestKeystoneAuthStrategy(base.TestCase):
             init_config=False,
         )
 
-    def test_middleware_installed(self):
-        self.assertIsInstance(self.app.wsgi_app, keystone.SkippingAuthProtocol)
+
+class TestNoAuthStrategy(RequestIdMixin, StrategyTestCase):
+    AUTH_STRATEGY = "noauth"
+
+    def test_middleware_order(self):
+        proxy = self.app.wsgi_app
+        self.assertIsInstance(proxy, http_proxy_to_wsgi.HTTPProxyToWSGI)
+        req_id = proxy.application
+        self.assertIsInstance(req_id, request_id.RequestId)
+        self.assertIsInstance(req_id.application, keystone.NoAuthContext)
+
+
+class TestKeystoneAuthStrategy(RequestIdMixin, StrategyTestCase):
+    """The real keystone middleware stack, without a keystone server."""
+
+    AUTH_STRATEGY = "keystone"
+
+    def test_middleware_order(self):
+        proxy = self.app.wsgi_app
+        self.assertIsInstance(proxy, http_proxy_to_wsgi.HTTPProxyToWSGI)
+        req_id = proxy.application
+        self.assertIsInstance(req_id, request_id.RequestId)
+        auth = req_id.application
+        self.assertIsInstance(auth, keystone.SkippingAuthProtocol)
+        self.assertIsInstance(auth._app, keystone.KeystoneContext)
 
     def test_skipped_paths_with_token(self):
         headers = {"X-Auth-Token": "tok"}
