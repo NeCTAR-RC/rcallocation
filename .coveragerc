@@ -1,0 +1,6 @@
+[run]
+omit =
+   rcallocation/wsgi.py
+   rcallocation/cmd/*
+   rcallocation/migrations/*
+   rcallocation/forcodes.py
