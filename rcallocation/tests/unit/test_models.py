@@ -67,6 +67,13 @@ class ModelDDLTest(base.TestCase):
         ddl = _mysql_ddl(db.metadata.tables["service_type"])
         self.assertIn("CHECK (`order` >= 0)", ddl)
 
+    def test_datetimes_keep_microseconds(self):
+        ddl = _mysql_ddl(db.metadata.tables["allocation_request"])
+        self.assertIn("submit_date DATETIME(6) NOT NULL", ddl)
+        self.assertIn("modified_time DATETIME(6) NOT NULL", ddl)
+        ddl = _mysql_ddl(db.metadata.tables["usage_type"])
+        self.assertIn("created_at DATETIME(6) NOT NULL", ddl)
+
 
 class MigrationDDLTest(base.TestCase):
     def _offline_sql(self, path):
@@ -92,3 +99,18 @@ class MigrationDDLTest(base.TestCase):
     def test_initial_schema_service_type_order_check(self):
         sql = self._offline_sql(MIGRATIONS / "40d50e265707_initial_schema.py")
         self.assertIn("CHECK (`order` >= 0)", sql)
+
+    def test_datetime_microseconds_migration(self):
+        sql = self._offline_sql(
+            MIGRATIONS / "5b2e9c4a1f37_datetime_microseconds.py"
+        )
+        for table, column in (
+            ("allocation_request", "submit_date"),
+            ("allocation_request", "modified_time"),
+            ("usage_type", "created_at"),
+        ):
+            self.assertIn(
+                f"ALTER TABLE {table} CHANGE {column} {column} "
+                "DATETIME(6) NOT NULL",
+                sql,
+            )

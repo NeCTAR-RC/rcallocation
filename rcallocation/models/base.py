@@ -33,6 +33,11 @@ def utcnow():
 
 LongText = db.Text().with_variant(mysql.LONGTEXT(), "mysql")
 
+# Microsecond precision on MySQL, as Django's datetime(6) columns had.
+# Plain DATETIME drops the fraction, so records written in the same
+# second tie when ordered by time.
+DateTime = db.DateTime().with_variant(mysql.DATETIME(fsp=6), "mysql")
+
 
 approver_site = db.Table(
     "approver_site",

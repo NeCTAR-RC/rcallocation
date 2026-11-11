@@ -244,7 +244,7 @@ class AllocationTests(common.AllocationApiTestCase):
         self.as_user()
         factories.create_allocation(contact_email='other@example.com')
         response = self.client.get('/v1/allocations/2/')
-        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.status_code, 403)
 
     def test_get_allocation_admin(self):
         self.as_admin()
@@ -606,7 +606,7 @@ class AllocationTests(common.AllocationApiTestCase):
         response = self.client.patch(
             '/v1/allocations/2/', data={'use_case': 'test-update'}
         )
-        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.status_code, 403)
 
     def test_update_allocation_admin(self):
         self.as_admin()
@@ -1065,7 +1065,7 @@ class AllocationTests(common.AllocationApiTestCase):
             contact_email='bogus@wrong.com', status=choices.APPROVED
         )
         response = self.client.post(f'/v1/allocations/{allocation.id}/amend/')
-        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.status_code, 403)
 
     def test_delete(self):
         self.assertEqual(0, factories.history_count(self.allocation))

@@ -552,9 +552,10 @@ class Manager:
         if editor_is_approver:
             allocation.approver_email = self.user_name
         else:
-            allocation.contact_email = (
-                allocation.contact_email or self.user_name
-            )
+            # The editor becomes the contact, as the dashboard's user edit
+            # views recorded it (a TenantManager editing someone else's
+            # request takes it over).
+            allocation.contact_email = self.user_name
         allocation.provisioned = False
         allocation.estimated_number_users = None
         now = models.utcnow()

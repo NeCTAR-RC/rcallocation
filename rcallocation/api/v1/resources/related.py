@@ -13,12 +13,14 @@
 
 """Chief investigators, publications and grants of allocation requests.
 
-Readable by their owner (the allocation contact) and read admins, and
-writable while the allocation is pending.
+Readable by whoever can see the allocation (its contact, managers of its
+project, a member of the project for its approved allocation) and read
+admins, and writable while the allocation is pending.
 """
 
 from rcallocation.api.v1 import base
 from rcallocation.api.v1 import filtering
+from rcallocation.api.v1.resources import allocation as allocation_resource
 from rcallocation.api.v1.schemas import related as schemas
 from rcallocation import choices
 from rcallocation.common import exceptions
@@ -38,9 +40,11 @@ class RelatedResource(base.Resource):
         query = db.session.query(self.model)
         if self.authorize("list:all", do_raise=False):
             return query
+        # The allocations the caller can see, so the dashboard can show
+        # a TenantManager the investigators of a request they may edit.
         return query.filter(
             self.model.allocation.has(
-                Allocation.contact_email == self.context.user_name
+                allocation_resource.own_filter(self.context)
             )
         )
 

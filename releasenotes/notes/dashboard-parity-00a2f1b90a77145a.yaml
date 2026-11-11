@@ -1,0 +1,30 @@
+---
+upgrade:
+  - |
+    A database migration changes the ``submit_date`` and ``modified_time``
+    columns of ``allocation_request`` and the ``created_at`` column of
+    ``usage_type`` to ``DATETIME(6)`` on MySQL. Run
+    ``rcallocation-manage db upgrade`` before starting the new version.
+    Times already stored without fractional seconds keep a fraction of
+    zero.
+features:
+  - |
+    Quota rows from ``/v1/quotas/`` now include ``group``, the id of the
+    quota group they belong to. Ordering rows by group, then id, gives the
+    order the dashboard lists an allocation's quotas in.
+fixes:
+  - |
+    Allocation times keep their microseconds on MySQL again, as the Django
+    schema did. Requests changed within the same second no longer tie when
+    ordered by submission or modification time.
+  - |
+    The chief investigators, publications and grants of an allocation can
+    now be read by everyone who can see the allocation, including managers
+    of its project, not only its contact.
+  - |
+    When a non-admin edits and resubmits a request through
+    ``/v1/allocations/{id}/submit/``, they become its contact, as the
+    dashboard's user edit forms recorded it.
+  - |
+    Requests for an allocation that exists but is not visible to the caller
+    now get 403 rather than 404. A missing allocation still gets 404.

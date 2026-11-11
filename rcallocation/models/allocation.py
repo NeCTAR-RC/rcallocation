@@ -53,9 +53,9 @@ class AllocationRequest(db.Model):
     status_explanation = db.Column(base.LongText, nullable=True)
     #: Keystone user id of the creator
     created_by = db.Column(db.String(100), nullable=False)
-    submit_date = db.Column(db.DateTime, nullable=False, default=base.utcnow)
+    submit_date = db.Column(base.DateTime, nullable=False, default=base.utcnow)
     modified_time = db.Column(
-        db.DateTime, nullable=False, default=base.utcnow, index=True
+        base.DateTime, nullable=False, default=base.utcnow, index=True
     )
 
     # The ordering of the following fields are important, as it

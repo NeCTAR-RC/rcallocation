@@ -31,6 +31,28 @@ from rcallocation import models
 
 Allocation = models.AllocationRequest
 
+
+def own_filter(ctx):
+    """SQL condition for the allocations a non-admin may see.
+
+    Their own requests (they are the contact), the approved allocation of
+    the project their token is scoped to, and every allocation of the
+    projects they manage.
+    """
+    conditions = [Allocation.contact_email == ctx.user_name]
+    if ctx.project_id:
+        conditions.append(
+            sa.and_(
+                Allocation.project_id == ctx.project_id,
+                Allocation.status == choices.APPROVED,
+            )
+        )
+    managed = projects.managed_project_ids(ctx.user_id)
+    if managed:
+        conditions.append(Allocation.project_id.in_(sorted(managed)))
+    return sa.or_(*conditions)
+
+
 blp = base.v1_blueprint(
     "allocations",
     __name__,
@@ -144,25 +166,7 @@ class AllocationResource(base.Resource):
     public_filterset = PublicAllocationFilterSet
 
     def own_filter(self):
-        """SQL condition for the allocations a non-admin may see.
-
-        Their own requests (they are the contact), the approved
-        allocation of the project their token is scoped to, and every
-        allocation of the projects they manage.
-        """
-        ctx = self.context
-        conditions = [Allocation.contact_email == ctx.user_name]
-        if ctx.project_id:
-            conditions.append(
-                sa.and_(
-                    Allocation.project_id == ctx.project_id,
-                    Allocation.status == choices.APPROVED,
-                )
-            )
-        managed = projects.managed_project_ids(ctx.user_id)
-        if managed:
-            conditions.append(Allocation.project_id.in_(sorted(managed)))
-        return sa.or_(*conditions)
+        return own_filter(self.context)
 
     def visible_query(self):
         query = db.session.query(Allocation)
@@ -188,9 +192,20 @@ class AllocationResource(base.Resource):
         return cls(partial=partial)
 
     def get_visible(self, allocation_id):
-        return self.get_or_404(
-            Allocation, allocation_id, query=self.visible_query()
-        )
+        """The allocation, if the caller may see it.
+
+        An allocation that exists but is not visible to the caller is
+        refused with 403 rather than hidden with 404, as the dashboard
+        did when it read the database itself.
+        """
+        try:
+            return self.get_or_404(
+                Allocation, allocation_id, query=self.visible_query()
+            )
+        except exceptions.NotFound:
+            if db.session.get(Allocation, allocation_id) is not None:
+                raise exceptions.PermissionDenied()
+            raise
 
     def require_live(self, allocation):
         if allocation.is_history():

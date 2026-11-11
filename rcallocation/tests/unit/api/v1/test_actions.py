@@ -243,7 +243,7 @@ class SubmitTests(common.AllocationApiTestCase):
         response = self.client.post(
             f'/v1/allocations/{self.allocation.id}/submit/', json={}
         )
-        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.status_code, 403)
 
     def test_submit_anonymous(self):
         self.as_anon()
@@ -711,7 +711,7 @@ class ChecksTests(common.AllocationApiTestCase):
         response = self.client.get(
             f'/v1/allocations/{self.allocation.id}/checks/'
         )
-        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.status_code, 403)
 
     def test_checks_anonymous(self):
         self.as_anon()
