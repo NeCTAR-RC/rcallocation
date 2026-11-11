@@ -85,7 +85,7 @@ class ProjectScopedReadTests(common.AllocationApiTestCase):
         response = self.client.get(
             f'/v1/allocations/{self.project_allocation.id}/'
         )
-        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.status_code, 403)
 
     def test_contact_still_sees_pending_requests(self):
         self.persona(self.contact)
@@ -154,6 +154,40 @@ class ProjectScopedReadTests(common.AllocationApiTestCase):
         )
         self.assertEqual(response.status_code, 200, response.json)
 
+    @mock.patch('rcallocation.common.projects.managed_project_ids')
+    def test_tenant_manager_edits_managed_request(self, managed):
+        managed.return_value = {'idproj2'}
+        investigator = factories.create_investigator(self.pending)
+        self.as_user()
+        # The related records of a request they can see are visible ...
+        response = self.client.get(
+            f'/v1/chiefinvestigators/?allocation={self.pending.id}'
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual({investigator.id}, self.ids(response))
+        # ... and resubmitting it makes them its contact.
+        response = self.client.post(
+            f'/v1/allocations/{self.pending.id}/submit/',
+            json={'use_case': 'Managed edit'},
+        )
+        self.assertEqual(response.status_code, 200, response.json)
+        self.assertEqual(
+            common.USER['user_name'], response.json['contact_email']
+        )
+
+    def test_other_users_related_records_hidden(self):
+        factories.create_investigator(self.pending)
+        self.as_user()
+        response = self.client.get(
+            f'/v1/chiefinvestigators/?allocation={self.pending.id}'
+        )
+        self.assertEqual(set(), self.ids(response))
+
+    def test_missing_allocation_not_found(self):
+        self.as_user()
+        response = self.client.get('/v1/allocations/999999/')
+        self.assertEqual(response.status_code, 404)
+
 
 class SystemScopeAllocationTests(common.AllocationApiTestCase):
     def test_list_allocations_system_admin(self):
@@ -181,7 +215,7 @@ class SystemScopeAllocationTests(common.AllocationApiTestCase):
     def test_get_allocation_system_member(self):
         self.as_system_member()
         response = self.client.get(f'/v1/allocations/{self.allocation.id}/')
-        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.status_code, 403)
 
     def test_update_allocation_system_admin(self):
         self.as_system_admin()
@@ -207,7 +241,7 @@ class SystemScopeAllocationTests(common.AllocationApiTestCase):
         response = self.client.patch(
             f'/v1/allocations/{self.allocation.id}/', data={'national': True}
         )
-        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.status_code, 403)
 
     def test_system_reader_cannot_update(self):
         self.as_system_reader()

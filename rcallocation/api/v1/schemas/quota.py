@@ -21,9 +21,12 @@ class QuotaSchema(base.BaseSchema):
 
     ``resource`` is the resource id here (unlike the codename strings in
     an allocation's ``quotas`` list) and ``zone`` the zone name.
+    ``group`` is the quota group id: ordering rows by group then id
+    gives the order the dashboard lists an allocation's quotas in.
     """
 
     id = ma.fields.Integer()
+    group = ma.fields.Integer(attribute="group_id")
     zone = ma.fields.Method("get_zone")
     allocation = ma.fields.Method("get_allocation")
     requested_quota = ma.fields.Integer()

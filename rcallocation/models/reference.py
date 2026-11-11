@@ -269,7 +269,7 @@ class UsageType(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(40), nullable=False)
     enabled = db.Column(db.Boolean, nullable=False, default=True)
-    created_at = db.Column(db.DateTime, nullable=False, default=base.utcnow)
+    created_at = db.Column(base.DateTime, nullable=False, default=base.utcnow)
 
     def __repr__(self):
         return f"<UsageType {self.name}>"

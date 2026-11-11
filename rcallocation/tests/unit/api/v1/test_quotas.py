@@ -112,6 +112,7 @@ class QuotaTests(common.AllocationApiTestCase):
         self.assertEqual(
             {
                 'id': self.quota.id,
+                'group': self.quota_group.id,
                 'zone': 'testzone',
                 'allocation': self.allocation.id,
                 'requested_quota': self.quota.requested_quota,
